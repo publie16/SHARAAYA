@@ -61,6 +61,7 @@ export default function ProductCard({ product, onOpenDetail }) {
           <span className="product-card__price">₹{product.price}</span>
           {!isOOS ? (
             <button
+              type="button"
               className="btn btn-gold btn-sm"
               onClick={(e) => {
                 e.stopPropagation();

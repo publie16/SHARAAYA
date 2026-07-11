@@ -71,7 +71,7 @@ export default function ProductModal({ product, onClose }) {
             <hr className="gold-divider" style={{ margin: "1.2rem 0" }} />
 
             {!isOOS ? (
-              <button className="btn btn-gold btn-lg" style={{ width: "100%", justifyContent: "center" }} onClick={() => addToCart(product)}>
+              <button type="button" className="btn btn-gold btn-lg" style={{ width: "100%", justifyContent: "center" }} onClick={() => addToCart(product)}>
                 Add to Cart
               </button>
             ) : (

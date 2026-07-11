@@ -16,7 +16,11 @@ export function CartProvider({ children }) {
   const [items, setItems] = useState(readCart);
 
   useEffect(() => {
-    localStorage.setItem(CART_KEY, JSON.stringify(items));
+    try {
+      localStorage.setItem(CART_KEY, JSON.stringify(items));
+    } catch (error) {
+      console.warn("Unable to persist cart to localStorage", error);
+    }
   }, [items]);
 
   const addToCart = (product) => {
