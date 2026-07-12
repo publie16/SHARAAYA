@@ -93,7 +93,11 @@ export default function AdminDashboard() {
       setImages([]);
     } catch (error) {
       console.error("Failed to add product", error);
-      setMessage("Unable to add product. Please try smaller images or refresh the page.");
+      setMessage(
+        error?.message
+          ? `Unable to add product: ${error.message}`
+          : "Unable to add product. Please try again."
+      );
     } finally {
       setLoading(false);
     }

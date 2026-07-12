@@ -2,9 +2,12 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { SEED_PRODUCTS } from "../data/products";
 import { hasSupabaseConfig, supabase, supabaseProductsTable } from "../lib/supabaseClient";
 
+const DEBUG_PRODUCT_LOAD = import.meta.env.DEV;
+
 const STORAGE_KEY = "sharaaya_products";
 
 const ProductContext = createContext(null);
+const COMMON_TABLE_NAMES = ["products", "product", "earrings", "sharaaya_products"];
 
 const normalizeProducts = (items) => {
   if (!Array.isArray(items)) return [];
@@ -60,29 +63,41 @@ export function ProductProvider({ children }) {
 
   useEffect(() => {
     const loadRemoteProducts = async () => {
-      if (!hasSupabaseConfig || !supabase) return;
+      if (!hasSupabaseConfig || !supabase) {
+        console.warn("Supabase config not available; skipping remote product fetch.");
+        return;
+      }
 
-      try {
-        let { data, error } = await supabase
-          .from(supabaseProductsTable)
-          .select("*")
-          .order("createdAt", { ascending: false });
+      const tableCandidates = [supabaseProductsTable, ...COMMON_TABLE_NAMES.filter((name) => name !== supabaseProductsTable)];
 
-        if (error && error.code === "42703") {
-          ({ data, error } = await supabase
-            .from(supabaseProductsTable)
-            .select("*")
-            .order("created_at", { ascending: false }));
+      for (const tableName of tableCandidates) {
+        try {
+          const { data, error } = await supabase.from(tableName).select("*");
+          if (error) {
+            if (error.code === "42P01" || error.code === "PGRST116" || error.message?.includes("does not exist")) {
+              continue;
+            }
+            console.warn(`Supabase query failed for table ${tableName}`, error);
+            continue;
+          }
+
+          const remoteProducts = normalizeProducts(data || []);
+          if (DEBUG_PRODUCT_LOAD) {
+            console.info("Supabase products fetched", { tableName, data, remoteProducts });
+          }
+          if (remoteProducts.length) {
+            const sortedProducts = [...remoteProducts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            setProducts(sortedProducts);
+            return;
+          }
+        } catch (error) {
+          console.warn(`Supabase fetch failed for table ${tableName}`, error);
         }
+      }
 
-        if (error) throw error;
-
-        const remoteProducts = normalizeProducts(data || []);
-        if (remoteProducts.length) {
-          setProducts(remoteProducts);
-        }
-      } catch (error) {
-        console.error("Failed to load products from Supabase", error);
+      console.warn("No products found in Supabase for the configured tables.");
+      if (!DEBUG_PRODUCT_LOAD) {
+        window.dispatchEvent(new CustomEvent("sharaaya:supabase-load-empty"));
       }
     };
 
@@ -98,13 +113,13 @@ export function ProductProvider({ children }) {
       inStock: Number(product.stock) > 0,
     };
 
-    setProducts((prev) => [newProduct, ...prev]);
-
-    if (!hasSupabaseConfig || !supabase) return newProduct;
+    if (!hasSupabaseConfig || !supabase) {
+      setProducts((prev) => [newProduct, ...prev]);
+      return newProduct;
+    }
 
     try {
       const payload = {
-        id: newProduct.id,
         productId: product.productId,
         name: product.name,
         price: Number(product.price),
@@ -116,7 +131,6 @@ export function ProductProvider({ children }) {
         stock: Number(product.stock) || 0,
         inStock: Number(product.stock) > 0,
         featured: Boolean(product.featured),
-        createdAt: new Date(newProduct.createdAt).toISOString(),
       };
 
       const { data, error } = await supabase
@@ -125,17 +139,22 @@ export function ProductProvider({ children }) {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Failed to save product to Supabase", error);
+        throw error;
+      }
 
       const savedProduct = normalizeProducts([data])[0];
       if (savedProduct) {
-        setProducts((prev) => [savedProduct, ...prev.filter((item) => item.id !== newProduct.id)]);
+        setProducts((prev) => [savedProduct, ...prev]);
         return savedProduct;
       }
+
+      setProducts((prev) => [newProduct, ...prev]);
       return newProduct;
     } catch (error) {
       console.error("Failed to save product to Supabase", error);
-      return newProduct;
+      throw error;
     }
   };
 
