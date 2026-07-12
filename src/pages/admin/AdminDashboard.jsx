@@ -64,7 +64,7 @@ export default function AdminDashboard() {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     if (!form.name.trim() || !form.productId.trim() || !form.price || !form.shortDescription.trim() || images.length === 0) {
       setMessage("Please add a product ID, name, price, short description and at least one image.");
@@ -87,25 +87,28 @@ export default function AdminDashboard() {
     };
 
     try {
-      addProduct(product);
-      setTimeout(() => {
-        setMessage("Earring added to the storefront successfully.");
-        setForm(emptyForm);
-        setImages([]);
-        setLoading(false);
-      }, 400);
+      await addProduct(product);
+      setMessage("Earring added to the storefront successfully.");
+      setForm(emptyForm);
+      setImages([]);
     } catch (error) {
       console.error("Failed to add product", error);
       setMessage("Unable to add product. Please try smaller images or refresh the page.");
+    } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteProduct = (id, name) => {
+  const handleDeleteProduct = async (id, name) => {
     if (!window.confirm(`Delete ${name} from the storefront?`)) return;
 
-    deleteProduct(id);
-    setMessage(`Removed ${name} from the storefront.`);
+    try {
+      await deleteProduct(id);
+      setMessage(`Removed ${name} from the storefront.`);
+    } catch (error) {
+      console.error("Failed to delete product", error);
+      setMessage("Unable to delete that product right now.");
+    }
   };
 
   const previewCount = useMemo(() => images.length, [images]);
